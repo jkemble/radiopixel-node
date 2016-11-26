@@ -1,4 +1,6 @@
+#include <radiopixel_protocol.h>
 #include "Pattern.h"
+
 
 Pattern::Pattern( )
 {
@@ -20,6 +22,39 @@ void Pattern::Init( Stripper *strip, const uint32_t *colors, const uint8_t *leve
     m_level[ 2 ] = levels[ 2 ];
 
     Init( strip, offset );
+}
+
+//-------------------------------------------------------------
+
+Pattern *CreatePattern( uint8_t pattern )
+{
+    switch ( pattern )
+    {
+    case HatPacket::MiniTwinkle:
+        return new MiniTwinklePattern( );
+    case HatPacket::MiniSparkle:
+        return new MiniSparklePattern( );
+    case HatPacket::Sparkle:
+        return new SparklePattern( );
+    case HatPacket::Rainbow:
+        return new RainbowPattern( );
+    case HatPacket::Flash:
+        return new FlashPattern( );
+    case HatPacket::March:
+        return new MarchPattern( );
+    case HatPacket::Wipe:
+        return new WipePattern( );
+    case HatPacket::Gradient:
+        return new GradientPattern( );
+    case HatPacket::Fixed:
+        return new FixedPattern( );
+    case HatPacket::Strobe:
+        return new StrobePattern( );
+    case HatPacket::CandyCane:
+        return new CandyCanePattern( );
+    default:
+        return new DiagnosticPattern( 1 );
+    }
 }
 
 //-------------------------------------------------------------
@@ -195,7 +230,7 @@ void MiniTwinklePattern::Update( Stripper *strip, time_t offset )
     m_lastOffset = offset;
 }
 
-void MiniTwinklePattern::Cleanup( Stripper *strip )
+MiniTwinklePattern::~MiniTwinklePattern( )
 {
     delete [] m_pixels;
     m_pixels = NULL;
@@ -341,7 +376,7 @@ void GradientPattern::Update( Stripper *strip, time_t offset )
     }
 }
 
-void GradientPattern::Cleanup( Stripper *strip )
+GradientPattern::~GradientPattern( )
 {
     delete [] mp1;
     mp1 = NULL;
@@ -433,6 +468,18 @@ void FixedPattern::Update( Stripper *strip, time_t offset )
     for ( int i = 0; i < strip->numPixels( ); i++ )
     {
         strip->setPixelColor( i, ( i % 3 == step ) ? col : 0 );
+    }
+}
+
+//-------------------------------------------------------------
+
+void DiagnosticPattern::Update( Stripper *strip, time_t offset )
+{
+    const int space = 3;
+    for ( int i = 0; i < strip->numPixels( ); i++ )
+    {
+        bool on( ( i % ( m_code + space ) ) < m_code );
+        strip->setPixelColor( i, on ? WHITE : BLACK );
     }
 }
 

@@ -1,7 +1,7 @@
 #include <RFM69.h>    //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <SPI.h>
 #include <Adafruit_NeoPixel.h>
-#include <HatNet.h>
+#include <radiopixel_protocol.h>
 #include "Stripper.h"
 #include "Gradient.h"
 #include "Pattern.h"
@@ -27,9 +27,8 @@ Stripper strip( STRIP_LENGTH, STRIP_PIN, NEO_GRB + NEO_KHZ800 );
 
 // patterns
 
-const int PATTERN_COUNT = 11;
-Pattern *patterns[ PATTERN_COUNT ];
-uint8_t currentPattern = HatPacket::Gradient;
+Pattern *pattern = NULL;
+uint8_t patternId = HatPacket::Gradient;
 const time_t FRAME_MS = 1000 / 125;
 time_t lastUpdate = 0;
 uint8_t speed = 35;
@@ -109,8 +108,6 @@ const PROGMEM MacroStep hi( 0, 128, 160, 160, HatPacket::MiniTwinkle, RED, WHITE
 
 void setup() 
 {
-    Blink( LED_PIN, 500 );
-  
     // serial/debug
     Serial.begin( SERIAL_BAUD );
     Serial.println( "HatNode" );
@@ -127,20 +124,6 @@ void setup()
     // progress
     strip.setPixelColor( 0, WHITE );
     strip.show(); // Initialize all pixels to 'off'
-
-    // patterns
-    int pat = 0;
-    patterns[ pat++ ] = new MiniTwinklePattern( );
-    patterns[ pat++ ] = new MiniSparklePattern( );
-    patterns[ pat++ ] = new SparklePattern( );
-    patterns[ pat++ ] = new RainbowPattern( );
-    patterns[ pat++ ] = new FlashPattern( );
-    patterns[ pat++ ] = new MarchPattern( );
-    patterns[ pat++ ] = new WipePattern( );
-    patterns[ pat++ ] = new GradientPattern( );
-    patterns[ pat++ ] = new FixedPattern( );
-    patterns[ pat++ ] = new StrobePattern( );
-    patterns[ pat++ ] = new CandyCanePattern( );
 
     // progress
     strip.setPixelColor( 1, WHITE );
@@ -162,8 +145,7 @@ void setup()
     randomSeed(analogRead(0));
 
     // start idle pattern
-//    currentPattern = idle.pattern;
-    Pattern *pattern = patterns[ currentPattern ];
+    pattern = CreatePattern( patternId );
     time_t duration( pattern->GetDuration( &strip ) );
     uint32_t colors[3] = { RED, WHITE, GREEN };
     uint8_t slow[ 3 ] = { 17, 128, 128 };
@@ -235,25 +217,22 @@ void loop( )
         recvPacket.level[ 0 ] = 160;
     }
 
-    Pattern *pattern( patterns[ currentPattern ] );
-
     // process the packet if something was received
     switch ( recvPacket.command )
     {
     case HC_PATTERN:
-        if ( recvPacket.pattern < PATTERN_COUNT && 
-            ( recvPacket.pattern != currentPattern ||
+        if ( recvPacket.pattern != patternId ||
             recvPacket.color[ 0 ] != pattern->color( 0 ) ||
             recvPacket.color[ 1 ] != pattern->color( 1 ) ||
             recvPacket.color[ 2 ] != pattern->color( 2 ) ||
             recvPacket.level[ 0 ] != pattern->level( 0 ) ||
             recvPacket.level[ 1 ] != pattern->level( 1 ) ||
-            recvPacket.level[ 2 ] != pattern->level( 2 ) ) )
+            recvPacket.level[ 2 ] != pattern->level( 2 ) )
         {
-            pattern->Cleanup( &strip );
-            currentPattern = recvPacket.pattern;
+            delete pattern;
+            patternId = recvPacket.pattern;
+            pattern = CreatePattern( recvPacket.pattern );
             xmitPacket = recvPacket;
-            pattern = patterns[ currentPattern ];
             time_t duration( pattern->GetDuration( &strip ) );
             time_t offset = ( now * speed / 100 ) % duration;
             pattern->Init( &strip, recvPacket.color, recvPacket.level, offset );

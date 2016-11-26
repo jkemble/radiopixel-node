@@ -7,6 +7,8 @@ class Pattern
 {
 public:
     Pattern( );
+
+    virtual ~Pattern() {}
     
     // returns loop duration, time offset never goes above this
     virtual time_t GetDuration( Stripper *strip ) { return 40; }
@@ -22,9 +24,6 @@ public:
 
     // update pixels as needed
     virtual void Update( Stripper *strip, time_t offset ) { }
-
-    // opposite of Init, releases memory
-    virtual void Cleanup( Stripper *strip ) { }
 
     // returns color
     uint32_t color( int index ) const
@@ -42,6 +41,11 @@ protected:
     uint32_t m_color[ 3 ];
     uint8_t m_level[ 3 ];
 };
+
+
+// Pattern factory
+Pattern *CreatePattern( uint8_t pattern );
+
 
 // Flash the entire strip
 class FlashPattern : public Pattern
@@ -87,6 +91,8 @@ class MiniTwinklePattern : public Pattern
 public:
     MiniTwinklePattern();
 
+    ~MiniTwinklePattern();
+
     // assume nothing, setup all pixels
     virtual void Init( Stripper *strip, time_t offset );
     
@@ -99,9 +105,6 @@ public:
     // update pixels as needed
     virtual void Update( Stripper *strip, time_t offset );
 
-    // opposite of Init, releases memory
-    virtual void Cleanup( Stripper *strip );
-    
 protected:
     static const int MAX_PIXELS = 256;
     
@@ -146,6 +149,8 @@ class GradientPattern : public Pattern
 {
 public:
     GradientPattern( );
+
+    ~GradientPattern( );
     
     // returns loop duration, time offset never goes above this
     virtual time_t GetDuration( Stripper *strip );
@@ -158,10 +163,7 @@ public:
     
     // update pixels as needed
     virtual void Update( Stripper *strip, time_t offset );
-    
-    // opposite of Init, releases memory
-    virtual void Cleanup( Stripper *strip );
-    
+        
 private:
     Gradient grad;
     uint8_t *mp1, *mp2;
@@ -208,5 +210,17 @@ public:
 
     // update pixels as needed
     virtual void Update( Stripper *strip, time_t offset );
+};
+
+class DiagnosticPattern : public Pattern
+{
+public:
+    DiagnosticPattern( int code = 0 ) 
+        : m_code( code ) { }
+
+    // update pixels as needed
+    virtual void Update( Stripper *strip, time_t offset );
+
+    int m_code;
 };
 

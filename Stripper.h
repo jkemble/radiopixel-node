@@ -43,6 +43,7 @@ public:
 
 
 // colors
+const uint32_t BLACK    = 0x000000;
 const uint32_t RED      = 0xff0000;
 const uint32_t GREEN    = 0x00ff00;
 const uint32_t BLUE     = 0x0000ff;
