@@ -5,12 +5,12 @@ class Player
 {
 public:
     Player()
-        : packet( NULL ), pattern( NULL ), patternId( HatPacket::Gradient ), 
+        : packet( NULL ), pattern( NULL ), patternId( RadioPixel::Command::Gradient ), 
           lastUpdate( 0 ), speed( 35 )
     {
     }
 
-    void SetPacket( HatPacket *packet );
+    void SetPacket( RadioPixel::Command *packet );
 
     //! update to the next pattern in the sequence if needed
     // returns true if pattern changed, ie need to transmit
@@ -19,7 +19,7 @@ public:
     //! update the strip with the current pattern if needed
     void UpdateStrip( time_t now, Stripper *strip );
 
-    HatPacket *packet;
+    RadioPixel::Command *packet;
     Pattern *pattern;
     uint8_t patternId;
     time_t lastUpdate;
@@ -37,7 +37,7 @@ public:
     {
     }
 
-    void AddStep( int duration, HatPacket *packet )
+    void AddStep( int duration, RadioPixel::Command *packet )
     {
         if ( stepCount < 10 )
         {
@@ -50,13 +50,13 @@ public:
     class Step
     {
     public:
-        Step( int _duration = 0, HatPacket *_packet = NULL )
+        Step( int _duration = 0, RadioPixel::Command *_packet = NULL )
             : duration( _duration ), packet( _packet )
         {
         }
             
         int duration; // seconds
-        HatPacket *packet;
+        RadioPixel::Command *packet;
     };
 
     Step steps[ 10 ];

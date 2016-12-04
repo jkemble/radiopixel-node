@@ -33,8 +33,8 @@ Player player;
 //#define IS_RFM69HW    //uncomment only for RFM69HW! Leave out if you have RFM69W!
 RFM69 radio;
 bool controller = false; // did we initiate the latest command?
-HatPacket recvPacket; // last packet received
-HatPacket xmitPacket; // packet to retransmit
+RadioPixel::Command recvPacket; // last packet received
+RadioPixel::Command xmitPacket; // packet to retransmit
 time_t lastTransmit = 0; // time of last retransmit
 const time_t TRANSMIT_MS = 1000;
 
@@ -50,10 +50,10 @@ const int FLASH_PIN = 8;
 
 // reusable patterns
 
-HatPacket idle( 20, 35, HatPacket::Gradient, RED, WHITE, GREEN, 17, 128, 128 );
-HatPacket rwy( 128, 160, HatPacket::MiniTwinkle, RED, WHITE, YELLOW, 160 );
-HatPacket rwg( 128, 160, HatPacket::MiniTwinkle, RED, WHITE, GREEN, 160 );
-HatPacket rgb( 128, 160, HatPacket::MiniTwinkle, RED, GREEN, BLUE, 160 );
+RadioPixel::Command idle( 20, 35, RadioPixel::Command::Gradient, RED, WHITE, GREEN, 17, 128, 128 );
+RadioPixel::Command rwy( 128, 160, RadioPixel::Command::MiniTwinkle, RED, WHITE, YELLOW, 160 );
+RadioPixel::Command rwg( 128, 160, RadioPixel::Command::MiniTwinkle, RED, WHITE, GREEN, 160 );
+RadioPixel::Command rgb( 128, 160, RadioPixel::Command::MiniTwinkle, RED, GREEN, BLUE, 160 );
 
 
 void setup() 
@@ -117,7 +117,7 @@ void loop( )
 
     // if we receive a command from the radio then release control
     if ( radio.receiveDone( ) && 
-        radio.DATALEN == sizeof( HatPacket ) )
+        radio.DATALEN == sizeof( RadioPixel::Command ) )
     {
         // read the packet        
         memcpy( &recvPacket, ( void * )radio.DATA, radio.DATALEN );

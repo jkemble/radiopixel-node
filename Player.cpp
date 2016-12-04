@@ -1,7 +1,7 @@
 #include "Player.h"
 
 
-void Player::SetPacket( HatPacket *_packet )
+void Player::SetPacket( RadioPixel::Command *_packet )
 {
     packet = _packet;
 }

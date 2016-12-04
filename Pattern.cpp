@@ -30,27 +30,27 @@ Pattern *CreatePattern( uint8_t pattern )
 {
     switch ( pattern )
     {
-    case HatPacket::MiniTwinkle:
+    case RadioPixel::Command::MiniTwinkle:
         return new MiniTwinklePattern( );
-    case HatPacket::MiniSparkle:
+    case RadioPixel::Command::MiniSparkle:
         return new MiniSparklePattern( );
-    case HatPacket::Sparkle:
+    case RadioPixel::Command::Sparkle:
         return new SparklePattern( );
-    case HatPacket::Rainbow:
+    case RadioPixel::Command::Rainbow:
         return new RainbowPattern( );
-    case HatPacket::Flash:
+    case RadioPixel::Command::Flash:
         return new FlashPattern( );
-    case HatPacket::March:
+    case RadioPixel::Command::March:
         return new MarchPattern( );
-    case HatPacket::Wipe:
+    case RadioPixel::Command::Wipe:
         return new WipePattern( );
-    case HatPacket::Gradient:
+    case RadioPixel::Command::Gradient:
         return new GradientPattern( );
-    case HatPacket::Fixed:
+    case RadioPixel::Command::Fixed:
         return new FixedPattern( );
-    case HatPacket::Strobe:
+    case RadioPixel::Command::Strobe:
         return new StrobePattern( );
-    case HatPacket::CandyCane:
+    case RadioPixel::Command::CandyCane:
         return new CandyCanePattern( );
     default:
         return new DiagnosticPattern( 1 );
