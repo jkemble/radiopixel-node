@@ -4,16 +4,17 @@
 
 #include "Stripper.h"
 
-struct Step
-{
-  uint8_t pos;
-  uint32_t color;
-};
 
 class Gradient
 {
 public:
   Gradient();
+
+  struct Step
+  {
+    uint8_t pos;
+    uint32_t color;
+  };
 
   void clearSteps( );
   void addStep( uint8_t pos, uint32_t color );

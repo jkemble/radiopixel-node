@@ -2,9 +2,8 @@
 #include <SPI.h>
 #include <Adafruit_NeoPixel.h>
 #include <radiopixel_protocol.h>
-#include "Stripper.h"
-#include "Gradient.h"
-#include "Pattern.h"
+#include "Player.h"
+#include "Button.h"
 
 
 // board rev (x 10)
@@ -27,17 +26,14 @@ Stripper strip( STRIP_LENGTH, STRIP_PIN, NEO_GRB + NEO_KHZ800 );
 
 // patterns
 
-Pattern *pattern = NULL;
-uint8_t patternId = HatPacket::Gradient;
-const time_t FRAME_MS = 1000 / 125;
-time_t lastUpdate = 0;
-uint8_t speed = 35;
+Player player;
 
 // radio
 
 //#define IS_RFM69HW    //uncomment only for RFM69HW! Leave out if you have RFM69W!
 RFM69 radio;
 bool controller = false; // did we initiate the latest command?
+HatPacket recvPacket; // last packet received
 HatPacket xmitPacket; // packet to retransmit
 time_t lastTransmit = 0; // time of last retransmit
 const time_t TRANSMIT_MS = 1000;
@@ -46,65 +42,19 @@ const time_t TRANSMIT_MS = 1000;
 
 const int BUTTON1_PIN = 4;
 const int BUTTON2_PIN = 5;
-struct button
-{
-    button( int _pin )
-        : pin( _pin ), down( false ), pressed( 0 ), released( 0 ), handled( true )
-    {
-    }
-    
-    int pin;
-    bool down;
-    time_t pressed, released;
-    bool handled;
-};
-button button1( BUTTON1_PIN ), button2( BUTTON2_PIN );
+Button button1( BUTTON1_PIN ), button2( BUTTON2_PIN );
 
 // flash (board v1.3 and above)
 
 const int FLASH_PIN = 8;
 
-// macros
+// reusable patterns
 
-class MacroStep : public HatPacket
-{
-public:
-    MacroStep( int _duration, int _brightness, int _speed, uint8_t level1, int _pattern,
-        uint32_t color1, uint32_t color2, uint32_t color3,
-        uint8_t level2 = 255, uint8_t level3 = 255 )
-        : HatPacket( _brightness, _speed, _pattern, color1, color2, color3, level1, level2, level3 ),
-        duration( _duration )
-    {
-    }
-        
-    int duration; // seconds
-};
+HatPacket idle( 20, 35, HatPacket::Gradient, RED, WHITE, GREEN, 17, 128, 128 );
+HatPacket rwy( 128, 160, HatPacket::MiniTwinkle, RED, WHITE, YELLOW, 160 );
+HatPacket rwg( 128, 160, HatPacket::MiniTwinkle, RED, WHITE, GREEN, 160 );
+HatPacket rgb( 128, 160, HatPacket::MiniTwinkle, RED, GREEN, BLUE, 160 );
 
-class Macro
-{
-public:
-    Macro()
-        : stepCount( 0 )
-    {
-    }
-    
-    void AddStep( MacroStep *step)
-    {
-        if ( stepCount < 10 )
-        {
-            steps[ stepCount ] = step;        
-            stepCount++;
-        }
-    }
-    
-    MacroStep *steps[ 10 ];
-    int stepCount;
-};
-
-/*
-const PROGMEM MacroStep idle( 0, 20, 35, 17, HatPacket::Gradient, RED, WHITE, GREEN );
-const PROGMEM MacroStep hi( 0, 128, 160, 160, HatPacket::MiniTwinkle, RED, WHITE, YELLOW );
-*/
 
 void setup() 
 {
@@ -113,21 +63,21 @@ void setup()
     Serial.println( "HatNode" );
     pinMode( LED_PIN, OUTPUT );
 
-    // buttons
-    digitalWrite( BUTTON1_PIN, HIGH );
-    digitalWrite( BUTTON2_PIN, HIGH );
-
     // strip
     strip.begin();
     strip.setBrightness( 20 );
 
     // progress
     strip.setPixelColor( 0, WHITE );
-    strip.show(); // Initialize all pixels to 'off'
+    strip.show();
+
+    // buttons
+    digitalWrite( BUTTON1_PIN, HIGH );
+    digitalWrite( BUTTON2_PIN, HIGH );
 
     // progress
     strip.setPixelColor( 1, WHITE );
-    strip.show(); // Initialize all pixels to 'off'    
+    strip.show();    
 
     // radio
     delay( 10 );
@@ -140,17 +90,12 @@ void setup()
 
     // progress
     strip.setPixelColor( 2, WHITE );
-    strip.show(); // Initialize all pixels to 'off'
+    strip.show();
 
     randomSeed(analogRead(0));
 
     // start idle pattern
-    pattern = CreatePattern( patternId );
-    time_t duration( pattern->GetDuration( &strip ) );
-    uint32_t colors[3] = { RED, WHITE, GREEN };
-    uint8_t slow[ 3 ] = { 17, 128, 128 };
-    pattern->Init( &strip, colors, slow, 0 ); //idle.color, idle.level, 0 );
-    strip.show();
+    player.SetPacket( &idle );
     
     Serial.println( "setup complete");
 }
@@ -158,7 +103,6 @@ void setup()
 void loop( )
 {
     time_t now = millis( );
-    HatPacket recvPacket;
     
     // if we receive a command from serial then become the controller
     if ( Serial.available( ) >= sizeof recvPacket )
@@ -168,7 +112,7 @@ void loop( )
         
         // take control
         controller = true;
-        lastTransmit = 0;
+        player.SetPacket( &recvPacket );
     }
 
     // if we receive a command from the radio then release control
@@ -180,138 +124,50 @@ void loop( )
 
         // release control
         controller = false;
+        player.SetPacket( &recvPacket );
     }
 
     // check the buttons
-    updateButton( &button1 );
-    updateButton( &button2 );
-    if ( !button1.handled && 
-        ( button1.released - button1.pressed ) >= 50 )
+    button1.update( );
+    button2.update( );
+    if ( !button1.down && !button2.down )
     {
-        button1.handled = true;
-/*        
-        recvPacket = hi;
-*/        
-        recvPacket.command = HC_PATTERN;
-        recvPacket.brightness = 128;
-        recvPacket.speed = 160;
-        recvPacket.pattern = 0;
-        recvPacket.color[ 0 ] = 0xff0000;
-        recvPacket.color[ 1 ] = 0xffffff;
-        recvPacket.color[ 2 ] = 0xffff00;
-        recvPacket.level[ 0 ] = 160;
-//*/        
-    }
-    else if ( !button2.handled && 
-        ( button2.released - button2.pressed ) >= 50 )
-    {
-        button2.handled = true;
-
-        recvPacket.command = HC_PATTERN;
-        recvPacket.brightness = 128;
-        recvPacket.speed = 160;
-        recvPacket.pattern = 0;
-        recvPacket.color[ 0 ] = 0xff0000;
-        recvPacket.color[ 1 ] = 0xffffff;
-        recvPacket.color[ 2 ] = 0x00ff00;
-        recvPacket.level[ 0 ] = 160;
-    }
-
-    // process the packet if something was received
-    switch ( recvPacket.command )
-    {
-    case HC_PATTERN:
-        if ( recvPacket.pattern != patternId ||
-            recvPacket.color[ 0 ] != pattern->color( 0 ) ||
-            recvPacket.color[ 1 ] != pattern->color( 1 ) ||
-            recvPacket.color[ 2 ] != pattern->color( 2 ) ||
-            recvPacket.level[ 0 ] != pattern->level( 0 ) ||
-            recvPacket.level[ 1 ] != pattern->level( 1 ) ||
-            recvPacket.level[ 2 ] != pattern->level( 2 ) )
+        if ( ( button1.duration( ) >= 2500 ) && ( button2.duration( ) >= 2500 ) )
         {
-            delete pattern;
-            patternId = recvPacket.pattern;
-            pattern = CreatePattern( recvPacket.pattern );
-            xmitPacket = recvPacket;
-            time_t duration( pattern->GetDuration( &strip ) );
-            time_t offset = ( now * speed / 100 ) % duration;
-            pattern->Init( &strip, recvPacket.color, recvPacket.level, offset );
-            strip.show();
+            controller = !controller;
+            player.SetPacket( &rgb );
         }
-        // fall through!
-        
-    case HC_CONTROL:
-        strip.setBrightness( recvPacket.brightness );
-        speed = recvPacket.speed;
-        xmitPacket.brightness = recvPacket.brightness;
-        xmitPacket.speed = recvPacket.speed;
-        break;
-
-    case HC_NONE:
-    default:
-        break;
+        else if ( button1.duration( ) )
+        {
+            player.SetPacket( &rwy );
+        }
+        else if ( button2.duration( ) )
+        {
+            player.SetPacket( &rwg );
+        }
+        button1.clear( );
+        button2.clear( );
     }
     
-    // run the pattern
-    if ( ( now - lastUpdate ) > FRAME_MS )
+    // run the player
+    if ( player.UpdatePattern( now, &strip ) )
     {
-        time_t duration( pattern->GetDuration( &strip ) );
-        time_t offset = ( now * speed / 100 ) % duration;
-        if ( ( ( now * speed / 100 ) / duration ) != ( ( lastUpdate * speed / 100 ) / duration ) )
-        {
-            pattern->Loop( &strip, offset );
-        }
-        else
-        {
-            pattern->Update( &strip, offset );
-        }
-        strip.show();
-        
-        lastUpdate = now;
+        lastTransmit = 0;
     }
+    player.UpdateStrip( now, &strip );
 
     // retransmit if we're the controller and haven't sent for a while
     if ( controller && ( now - lastTransmit ) > TRANSMIT_MS )
     {
-        radio.send( HN_NODEID, &xmitPacket, sizeof xmitPacket );
-
+        if ( player.packet )
+        {
+            //--> get the complete pattern + brightness instead of just the pattern
+            // this doesnt handle brightness being set, then a new pattern coming up - brightness would be stomped!
+            radio.send( HN_NODEID, player.packet, sizeof *( player.packet ) );
+        }
         lastTransmit = now;
     }
 }
-
-/*
-void loop1()
-{
-    // Test smear()
-    //flash(0x000040);
-    grad.randomize(0,128);
-    strip.show();
-    delay(40);
-    for (int c = 0; c < 100; c++)
-    {
-        int p = random(1, STRIP_LENGTH - 1), l = grad.getPixel(p);
-        while (l < 251)
-        {
-            l+=4;
-            grad.setPixel(p, l);
-            grad.setPixel(p + 1, l);
-            grad.setPixel(p - 1, l);
-            grad.peturb( -16, 16);
-            strip.show();
-            delay(40);
-        }
-
-        for (int i = 0; i < 10 ; i++) 
-        {
-            grad.fade();
-            grad.peturb( -16, 16);
-            //grad.smear();
-            strip.show();
-            delay(40);
-        }
-    }
-}
-*/
 
 void Blink( byte pin, int ms )
 {
@@ -319,23 +175,5 @@ void Blink( byte pin, int ms )
     digitalWrite( pin, HIGH );
     delay( ms );
     digitalWrite( pin, LOW );
-}
-
-void updateButton( struct button *b )
-{
-    bool down = ( digitalRead( b->pin ) == LOW );
-    if ( down != b->down )
-    {
-        b->down = down;
-        if ( down )
-        {
-            b->pressed = millis();
-        }
-        else
-        {
-            b->released = millis();
-            b->handled = false;
-        }
-    }
 }
 

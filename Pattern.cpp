@@ -301,7 +301,7 @@ void WipePattern::Update( Stripper *strip, time_t offset )
 
 //-------------------------------------------------------------
 
-Step steps[ 4 ] = { { 0, 0x200000 }, { 32, 0xc01900 }, { 192, 0xff6010 }, { 255, 0x4040ff } };
+Gradient::Step steps[ 4 ] = { { 0, 0x200000 }, { 32, 0xc01900 }, { 192, 0xff6010 }, { 255, 0x4040ff } };
 
 
 GradientPattern::GradientPattern( )
