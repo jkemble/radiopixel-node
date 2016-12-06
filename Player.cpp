@@ -1,45 +1,80 @@
 #include "Player.h"
 
 
-void Player::SetPacket( RadioPixel::Command *_packet )
+void Player::SetCommand( RadioPixel::Command *command )
 {
-    packet = _packet;
+    steps[ 0 ].duration = 0;
+    steps[ 0 ].command = command;
+    stepCount = 1;
+    step = 0;
+    stepTime = millis( );
+}
+
+void Player::ClearCommands( )
+{
+    stepCount = 0;
+    step = 0;
+    stepTime = millis( );
+}
+
+void Player::AddCommand( unsigned long duration, RadioPixel::Command *command )
+{
+    if ( stepCount < MAX_STEPS )
+    {
+        steps[ stepCount ].duration = duration;
+        steps[ stepCount ].command = command;
+        stepCount++;
+    }
+}
+
+RadioPixel::Command *Player::GetCommand( )
+{
+    //--> get the complete pattern + brightness instead of just the pattern
+    // this doesnt handle brightness being set, then a new pattern coming up - brightness would be stomped!
+    return steps[ step ].command;
 }
 
 bool Player::UpdatePattern( time_t now, Stripper *strip )
 {
+    // move to the next command if needed
+    if ( ( steps[ step ].duration > 0 ) &&
+        ( now >= ( stepTime + steps[ step ].duration ) ) )
+    {
+        step = ( step + 1 ) % stepCount;
+        stepTime = now;
+    }
+  
     // update the pattern to match the command
     bool changed = false;
-    if ( packet )
+    RadioPixel::Command *command = steps[ step ].command;
+    if ( command )
     {
-        switch ( packet->command )
+        switch ( command->command )
         {
         case HC_PATTERN:
             if ( !pattern ||
-                packet->pattern != patternId ||
-                packet->color[ 0 ] != pattern->color( 0 ) ||
-                packet->color[ 1 ] != pattern->color( 1 ) ||
-                packet->color[ 2 ] != pattern->color( 2 ) ||
-                packet->level[ 0 ] != pattern->level( 0 ) ||
-                packet->level[ 1 ] != pattern->level( 1 ) ||
-                packet->level[ 2 ] != pattern->level( 2 ) )
+                command->pattern != patternId ||
+                command->color[ 0 ] != pattern->color( 0 ) ||
+                command->color[ 1 ] != pattern->color( 1 ) ||
+                command->color[ 2 ] != pattern->color( 2 ) ||
+                command->level[ 0 ] != pattern->level( 0 ) ||
+                command->level[ 1 ] != pattern->level( 1 ) ||
+                command->level[ 2 ] != pattern->level( 2 ) )
             {
                 delete pattern;
-                patternId = packet->pattern;
-                pattern = CreatePattern( packet->pattern );
+                patternId = command->pattern;
+                pattern = CreatePattern( command->pattern );
                 time_t duration( pattern->GetDuration( strip ) );
                 time_t offset = ( now * speed / 100 ) % duration;
-                pattern->Init( strip, packet->color, packet->level, offset );
+                pattern->Init( strip, command->color, command->level, offset );
                 strip->show();
                 changed = true;
             }
             // fall through!
             
         case HC_CONTROL:
-            strip->setBrightness( packet->brightness );
-            speed = packet->speed;
-//            xmitPacket.brightness = recvPacket.brightness;
-//            xmitPacket.speed = recvPacket.speed;
+            strip->setBrightness( command->brightness );
+            speed = command->speed;
             changed = true;
             break;
     
