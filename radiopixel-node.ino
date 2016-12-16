@@ -1,10 +1,14 @@
+#include <stdarg.h>
 #include <RFM69.h>    //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <SPI.h>
 #include <Adafruit_NeoPixel.h>
 #include <radiopixel_protocol.h>
 #include "Player.h"
+#include "Sequence.h"
 #include "Button.h"
 
+
+//#define DEBUG
 
 // board rev (x 10)
 #define BOARD_REV 13 
@@ -27,14 +31,9 @@ Stripper strip( STRIP_LENGTH, STRIP_PIN, NEO_GRB + NEO_KHZ800 );
 // patterns
 
 Player player;
-enum Sequence
-{
-    Idle,
-    Warn,
-    Exit,
-    Other
-};
-Sequence sequence;
+IdleSequence idle;
+AlertSequence alert;
+RandomSequence randm;
 
 // radio
 
@@ -42,7 +41,7 @@ Sequence sequence;
 RFM69 radio;
 bool controller = false; // did we initiate the latest command?
 RadioPixel::Command recvPacket; // last packet received
-RadioPixel::Command xmitPacket; // packet to retransmit
+PacketSequence recvSequence( &recvPacket );
 time_t lastTransmit = 0; // time of last retransmit
 const time_t TRANSMIT_MS = 1000;
 
@@ -56,45 +55,27 @@ Button button1( BUTTON1_PIN ), button2( BUTTON2_PIN );
 
 const int FLASH_PIN = 8;
 
-// reusable patterns
+// todo:
+// [ ] allow local control when no controller is transmitting
+//    * need more formal concept of idle state (sequence return step -1 to reliquish control?)
+//    * stop transmitting when in idle state
+//    * disable local control if external control received within last 10 seconds
+//    * idle command so all nodes know they are in idle?
 
-const int FULL = 255;
-// idle
-RadioPixel::Command idle( 20, 35, RadioPixel::Command::Gradient, RED, WHITE, GREEN, 17, 128, 128 );
-// warn
-RadioPixel::Command warn1( FULL, 100, RadioPixel::Command::Flash, YELLOW, YELLOW, YELLOW, 255 );
-RadioPixel::Command warn2( FULL,  40, RadioPixel::Command::March, YELLOW, YELLOW, YELLOW, 34 );
-RadioPixel::Command warn3( FULL, 100, RadioPixel::Command::MiniTwinkle, YELLOW, Stripper::Color( 255, 255, 64 ), YELLOW, 75 );
-RadioPixel::Command warn4( FULL/2, 75, RadioPixel::Command::Gradient, YELLOW, Stripper::Color( 255, 255, 64 ), YELLOW, 75 );
-// exit
-RadioPixel::Command exit1( FULL, 100, RadioPixel::Command::Flash, RED, RED, RED, 255 );
-RadioPixel::Command exit2( FULL,  40, RadioPixel::Command::March, RED, RED, RED, 34 );
-RadioPixel::Command exit3( FULL, 100, RadioPixel::Command::MiniTwinkle, RED, Stripper::Color( 255, 64, 64 ), RED, 75 );
-RadioPixel::Command exit4( FULL/2, 75, RadioPixel::Command::Gradient, RED, Stripper::Color( 255, 64, 64 ), RED, 75 );
-// random
-RadioPixel::Command rwyTwinkle( FULL, 160, RadioPixel::Command::MiniTwinkle, RED, WHITE, YELLOW, 160 );
-RadioPixel::Command rwgTwinkle( FULL, 160, RadioPixel::Command::MiniTwinkle, RED, WHITE, GREEN, 160 );
-RadioPixel::Command rwrSubtle( FULL, 35, RadioPixel::Command::Gradient, RED, WHITE, RED, 17 );
-RadioPixel::Command blueSmooth( FULL, 75, RadioPixel::Command::Gradient, BLUE, Stripper::Color( 128, 128, 255 ), BLUE, 75 );
-/*
-RadioPixel::Command rwb( FULL, 160, RadioPixel::Command::MiniTwinkle, RED, WHITE, BLUE, 160 );
-RadioPixel::Command rwgCandy( FULL/2, 65, RadioPixel::Command::CandyCane, RED, WHITE, GREEN, 255 );
-RadioPixel::Command rwrCandy( FULL/2, 100, RadioPixel::Command::CandyCane, RED, WHITE, RED, 255 );
-RadioPixel::Command rwgTree( FULL, 100, RadioPixel::Command::Fixed, RED, WHITE, GREEN, 255 );
-RadioPixel::Command rwgMarch( FULL, 127, RadioPixel::Command::March, RED, WHITE, GREEN, 8 );
-RadioPixel::Command rwgWipe( FULL, 127, RadioPixel::Command::Wipe, RED, WHITE, GREEN, 8 );
-RadioPixel::Command rwgFlicker( FULL, 255, RadioPixel::Command::MiniSparkle, RED, WHITE, GREEN, 9 );
-RadioPixel::Command cga( FULL, 100, RadioPixel::Command::MiniTwinkle, CYAN, MAGENTA, YELLOW, 128 );
-RadioPixel::Command rainbow( FULL, 100, RadioPixel::Command::Rainbow, WHITE, WHITE, WHITE, 255 );
-RadioPixel::Command strobe( FULL, 128, RadioPixel::Command::Strobe, WHITE, WHITE, WHITE, 255 );
-*/
-
+int freeRam()
+{
+    extern int __heap_start, *__brkval;
+    int v;
+    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}
 
 void setup() 
 {
+    Blink( LED_PIN, 50 );
+  
     // serial/debug
     Serial.begin( SERIAL_BAUD );
-    Serial.println( "HatNode" );
+    Serial.println( "RadioPixel" );
     pinMode( LED_PIN, OUTPUT );
 
     // strip
@@ -129,26 +110,59 @@ void setup()
     randomSeed(analogRead(0));
 
     // start idle pattern
-    player.SetCommand( &idle );
-    sequence = Idle;
+    player.SetSequence( &idle );
     
     Serial.println( "setup complete");
 }
 
+#ifdef DEBUG          
+time_t lastUpdate = 0;
+#endif
+
 void loop( )
 {
     time_t now = millis( );
-    
+
+#ifdef DEBUG          
+    if ( now >= ( lastUpdate + 1000 ) )
+    {
+        Serial.print( F("free memory: " ) );
+        Serial.print( freeRam( ) );
+        Serial.println( F(" bytes" ) );
+        lastUpdate = now;
+    }
+#endif
+
     // if we receive a command from serial then become the controller
-    if ( Serial.available( ) >= sizeof recvPacket )
+    int avail = Serial.available( );
+    if ( avail >= sizeof recvPacket )
     {
         // read the packet
+#ifdef DEBUG          
         Serial.readBytes( ( char *)&recvPacket, sizeof recvPacket );
-        
+        Serial.print( F("received serial command, command "));
+        Serial.print( recvPacket.command );
+        Serial.print( F(", pattern "));
+        Serial.println( recvPacket.pattern );
+#endif        
+        if ( avail > sizeof recvPacket )
+        {
+            int extra = 0;
+            while ( Serial.available( ) )
+            {
+                Serial.read( );
+                extra++;
+            }
+#ifdef DEBUG          
+            Serial.print( F("serial overflow "));
+            Serial.print( extra );
+            Serial.println( F(" bytes"));
+#endif
+        }
+          
         // take control
         controller = true;
-        player.SetCommand( &recvPacket );
-        sequence = Other;
+        player.SetSequence( &recvSequence );
     }
 
     // if we receive a command from the radio then release control
@@ -160,8 +174,7 @@ void loop( )
 
         // release control
         controller = false;
-        player.SetCommand( &recvPacket );
-        sequence = Other;
+        player.SetSequence( &recvSequence );
     }
 
     // check the buttons
@@ -169,68 +182,43 @@ void loop( )
     button2.update( );
     if ( !button1.down && !button2.down )
     {
+        // determine what button was hit and the resulting sequence
+        Sequence *seq = NULL;
         if ( ( button1.duration( ) >= 2500 ) && ( button2.duration( ) >= 2500 ) )
         {
             controller = !controller;
-            //player.SetCommand( &rgb );
+            // seq = controller ? &red : &green;
         }
         else if ( button1.duration( ) )
         {
-            // warning - exit - idle
-            player.ClearCommands( );
-            switch ( sequence )
+            if ( controller )
             {
-            default: // everything goes to warning
-                player.AddCommand(  4000, &warn1 );
-                player.AddCommand( 60000, &warn2 );
-                player.AddCommand( 60000, &warn3 );
-                player.AddCommand(     0, &warn4 );
-                sequence = Warn;
-                break;
-
-            case Warn: // warning goes to exit
-                player.AddCommand(  4000, &exit1 );
-                player.AddCommand( 60000, &exit2 );
-                player.AddCommand( 60000, &exit3 );
-                player.AddCommand(     0, &exit4 );
-                sequence = Exit;
-                break;
-
-            case Exit: // exit goes to idle
-                player.SetCommand( &idle );
-                sequence = Idle;
-                break;
+                seq = &alert;
+            }
+            else
+            {
+                seq = &randm;
             }
         }
         else if ( button2.duration( ) )
         {
-            player.ClearCommands( );
-            int r = random( 14 );
-            switch ( r )
-            {
-            default:
-            case 0: player.AddCommand( 30000, &rwyTwinkle ); break;
-            case 1: player.AddCommand( 30000, &rwgTwinkle ); break;
-            case 2: player.AddCommand( 30000, &rwrSubtle ); break;
-/*            
-            case 3: player.AddCommand( 30000, &blueSmooth ); break;
-            case 4: player.AddCommand( 30000, &rwb ); break;
-            case 5: player.AddCommand( 30000, &rwgCandy ); break;
-            case 6: player.AddCommand( 30000, &rwrCandy ); break;
-            case 7: player.AddCommand( 30000, &rwgTree ); break;
-            case 8: player.AddCommand( 30000, &rwgMarch ); break;
-            case 9: player.AddCommand( 30000, &rwgWipe ); break;
-            case 10: player.AddCommand( 30000, &rwgFlicker ); break;
-            case 11: player.AddCommand( 30000, &cga ); break;
-            case 12: player.AddCommand( 30000, &rainbow ); break;
-            case 13: player.AddCommand( 30000, &strobe ); break;
-*/            
-            }
-            player.AddCommand( 0, &idle );
-            sequence = Other;
+            seq = &randm;
         }
         button1.clear( );
         button2.clear( );
+
+        // apply new sequence
+        if ( seq )
+        {
+            if ( player.GetSequence( ) != seq )
+            {
+                player.SetSequence( seq );
+            }
+            else
+            {
+                player.AdvanceSequence( );
+            }
+        }
     }
     
     // run the player
@@ -243,10 +231,10 @@ void loop( )
     // retransmit if we're the controller and haven't sent for a while
     if ( controller && ( now - lastTransmit ) > TRANSMIT_MS )
     {
-        RadioPixel::Command *command = player.GetCommand( );
-        if ( command )
+        RadioPixel::Command xmitCommand;
+        if ( player.GetCommand( &xmitCommand ) )
         {
-            radio.send( HN_NODEID, command, sizeof *command );
+            radio.send( HN_NODEID, &xmitCommand, sizeof xmitCommand );
         }
         lastTransmit = now;
     }

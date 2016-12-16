@@ -1,15 +1,5 @@
 #include "Gradient.h"
-#ifdef _DEBUG
-#include <stdarg.h>
 
-int freeRam()
-{
-    extern int __heapm_stepsart, *__brkval;
-    int v;
-    return (int) &v - (__brkval == 0 ? (int) &__heapm_stepsart : (int) __brkval);
-}
-
-#endif
 
 Gradient::Gradient()
     : m_stepCount( 0 )

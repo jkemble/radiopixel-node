@@ -4,9 +4,9 @@
 
 Pattern::Pattern( )
 {
-    m_color[ 0 ] = 0xff0000;
-    m_color[ 1 ] = 0xffffff;
-    m_color[ 2 ] = 0x00ff00;
+    m_color[ 0 ] = RED;
+    m_color[ 1 ] = WHITE;
+    m_color[ 2 ] = GREEN;
     
     m_level[ 0 ] = m_level[ 1 ] = m_level[ 2 ] = 0x80;
 }
@@ -138,14 +138,12 @@ void MiniSparklePattern::Update( Stripper *strip, time_t offset )
 
 MiniTwinklePattern::MiniTwinklePattern()
 {
-    m_pixels = NULL;
 }
 
 void MiniTwinklePattern::Init( Stripper *strip, time_t offset )
 {
-    m_pixels = new Pixel[ strip->numPixels( ) ];
-    m_lit = 0;
-    m_lastOffset = 0;
+    m_lastDim = m_lastLit = offset;
+    Loop( strip, offset );
 }
 
 time_t MiniTwinklePattern::GetDuration( Stripper *strip )
@@ -153,87 +151,50 @@ time_t MiniTwinklePattern::GetDuration( Stripper *strip )
     return 1000;
 }
 
-void MiniTwinklePattern::Loop( Stripper *strip, time_t offset )
-{
-    m_lit = 0;
-    Update( strip, offset );
-}
-
 void MiniTwinklePattern::Update( Stripper *strip, time_t offset )
 {
     int duration( GetDuration( strip ) );
 
-    // age out old pixels
-    if ( m_pixels )
+    // dim down all pixels
+    time_t dimDelta( delta( m_lastDim, offset, duration ) );
+    int dim( 255 - ( dimDelta * 255 / duration ) );
+    if ( dim < 255 )
     {
         for ( int i = 0; i < strip->numPixels( ); ++i )
         {
-            Pixel& pixel( m_pixels[ i ] );
-            if ( pixel.lit )
-            {
-                if ( ( offset > m_lastOffset ) &&
-                    ( m_lastOffset < pixel.start ) && ( pixel.start <= offset ) )
-                {
-                    pixel.lit = false;
-                    m_lit--;
-                }
-                else if ( ( offset < m_lastOffset ) &&
-                    ( ( m_lastOffset < pixel.start ) || ( pixel.start <= offset ) ) )
-                {
-                    pixel.lit = false;
-                    m_lit--;
-                }
-            }
+            uint32_t col = strip->getPixelColor( i );
+            col = strip->ColorFade( col, dim );
+            strip->setPixelColor( i, col );
         }
+        m_lastDim = offset;
     }
     
     // add any new pixels as needed
-    int total( fade( 1, strip->numPixels( ), m_level[ 0 ] ) );
-    int lit = offset * total / duration;
-    while ( m_pixels && m_lit < lit )
+    long total( fade( 1, strip->numPixels( ), m_level[ 0 ] ) );
+    time_t litDelta( delta( m_lastLit, offset, duration ) );
+    long todo( litDelta * total / duration );
+    if ( todo > 0 )
     {
-        int i = random( strip->numPixels( ) );
-        Pixel& pixel( m_pixels[ i ] );
-        pixel.lit = true;
-        pixel.color = random( 3 );
-        pixel.start = offset;
-        m_lit++;
-    }
-
-    // update strip
-    for ( int i = 0; i < strip->numPixels( ); ++i )
-    {
-        uint32_t col;
-        if ( !m_pixels )
+        for ( ; todo > 0; todo-- )
         {
-            col = 0xff0000;
+            int i = random( strip->numPixels( ) );
+            uint32_t col( color( random( 3 ) ) );
+            strip->setPixelColor( i, col );
         }
-        else
-        {
-            Pixel& pixel( m_pixels[ i ] );
-            if ( pixel.lit )
-            {
-                col = color( pixel.color );
-                time_t start = pixel.start;
-                uint32_t age = ( offset >= start ) ? ( offset - start ) : ( duration + offset - start );
-                uint8_t fade = 255 - age * 255 / duration;
-                col = strip->ColorFade( col, fade );
-            }
-            else
-            {
-                col = 0;
-            }
-        }
-        strip->setPixelColor( i, col );
+        m_lastLit = offset; // only update if we lit something!
     }
-
-    m_lastOffset = offset;
 }
 
-MiniTwinklePattern::~MiniTwinklePattern( )
+time_t MiniTwinklePattern::delta( time_t previous, time_t next, time_t duration )
 {
-    delete [] m_pixels;
-    m_pixels = NULL;
+    if ( next >= previous )
+    {
+        return next - previous;
+    }
+    else
+    {
+        return duration - previous + next;
+    }
 }
 
 //-------------------------------------------------------------

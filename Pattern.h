@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Stripper.h"
 #include "Gradient.h"
 
@@ -90,39 +92,21 @@ class MiniTwinklePattern : public Pattern
 {
 public:
     MiniTwinklePattern();
-
-    ~MiniTwinklePattern();
-
+    
     // assume nothing, setup all pixels
     virtual void Init( Stripper *strip, time_t offset );
-    
+
     // returns loop duration, time offset never goes above this
     virtual time_t GetDuration( Stripper *strip );
-
-    // restarting after a loop expired, but not first call 
-    virtual void Loop( Stripper *strip, time_t offset );
     
     // update pixels as needed
     virtual void Update( Stripper *strip, time_t offset );
 
 protected:
-    static const int MAX_PIXELS = 256;
-    
-    struct Pixel
-    {
-        Pixel( ) 
-            : lit( false ), color( 0 ), start( 0 )
-        {
-        }
-        
-        bool lit;
-        uint8_t color;
-        time_t start;
-    };
-    
-    Pixel *m_pixels;
-    int m_lit;
-    time_t m_lastOffset;
+    time_t delta( time_t previous, time_t next, time_t duration );
+
+    time_t m_lastDim;
+    time_t m_lastLit;
 };
 
 class MarchPattern : public Pattern
