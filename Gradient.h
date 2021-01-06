@@ -18,7 +18,7 @@ public:
 
   void clearSteps( );
   void addStep( uint8_t pos, uint32_t color );
-  void setSteps( Step *st, uint8_t steps );
+  void setSteps( Step *st, uint8_t steps ); // --> Function is not used ?
 
   uint32_t getColor( uint8_t pos );
 

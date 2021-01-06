@@ -23,7 +23,7 @@ public:
     void setAllColor( uint32_t color );
 
     // decrease all pixels intensity by value (0-255)
-    void setAllFade( uint8_t value );
+    void setAllFade( uint8_t value );  // --> Function is not used ?
 
     // color tools
 
