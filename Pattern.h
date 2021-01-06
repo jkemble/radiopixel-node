@@ -54,10 +54,10 @@ class FlashPattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 // Rainbow!
@@ -65,27 +65,27 @@ class RainbowPattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 class SparklePattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Loop( Stripper *strip, time_t offset );
+    virtual void Loop( Stripper *strip, time_t offset ) override;
 };
 
 class MiniSparklePattern : public SparklePattern
 {
 public:
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 class MiniTwinklePattern : public Pattern
@@ -94,13 +94,13 @@ public:
     MiniTwinklePattern();
     
     // assume nothing, setup all pixels
-    virtual void Init( Stripper *strip, time_t offset );
+    virtual void Init( Stripper *strip, time_t offset ) override;
 
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
     
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 
 protected:
     time_t delta( time_t previous, time_t next, time_t duration );
@@ -113,20 +113,20 @@ class MarchPattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
     
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 class WipePattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 class GradientPattern : public Pattern
@@ -137,16 +137,16 @@ public:
     ~GradientPattern( );
     
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // assume nothing, setup all pixels
-    virtual void Init( Stripper *strip, time_t offset );
+    virtual void Init( Stripper *strip, time_t offset ) override;
 
     // restarting after a loop expired, but not first call 
-    virtual void Loop( Stripper *strip, time_t offset );
+    virtual void Loop( Stripper *strip, time_t offset ) override;
     
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
         
 private:
     Gradient grad;
@@ -158,10 +158,10 @@ class StrobePattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 
     time_t m_lastOffset;
 };
@@ -170,30 +170,30 @@ class FixedPattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 class CandyCanePattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 class TestPattern : public Pattern
 {
 public:
     // returns loop duration, time offset never goes above this
-    virtual time_t GetDuration( Stripper *strip );
+    virtual time_t GetDuration( Stripper *strip ) override;
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 };
 
 class DiagnosticPattern : public Pattern
@@ -203,7 +203,7 @@ public:
         : m_code( code ) { }
 
     // update pixels as needed
-    virtual void Update( Stripper *strip, time_t offset );
+    virtual void Update( Stripper *strip, time_t offset ) override;
 
     int m_code;
 };

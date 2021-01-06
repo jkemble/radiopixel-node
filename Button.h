@@ -1,7 +1,7 @@
 
 struct Button
 {
-    Button( int _pin )
+    explicit Button( int _pin )
         : pin( _pin ), down( false ), pressed( 0 ), released( 0 )
     {
     }
@@ -39,6 +39,11 @@ struct Button
     void clear( )
     {
         pressed = released = 0;
+    }
+
+    void initializeButton( )
+    {
+        digitalWrite(pin, HIGH);
     }
     
     int pin;

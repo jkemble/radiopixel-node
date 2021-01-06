@@ -8,6 +8,14 @@
 class Sequence
 {
 public:
+    enum Type
+    {
+        IDLE,
+        ALERT,
+        RANDOM,
+        NONE,
+    };
+
     // start at the first set of steps
     virtual int Reset( ) { return 0; }
     //! advance to the next step
@@ -30,16 +38,16 @@ public:
 class PacketSequence : public Sequence
 {
 public:
-    PacketSequence( RadioPixel::Command *_packet ) : packet( _packet ) { }
+    explicit PacketSequence( RadioPixel::Command *_packet ) : packet( _packet ) { }
 
-    virtual int GetStepCount( ) { return 1; }
-    virtual unsigned long GetDuration( int step ) { return 0; }
-    virtual int GetCommand( int step ) { return packet->command; }
-    virtual int GetBrightness( int step ) { return packet->brightness; }
-    virtual int GetSpeed( int step ) { return packet->speed; }
-    virtual int GetPatternId( int step ) { return packet->pattern; }
-    virtual uint32_t GetColors( int step, int color ) { return packet->color[ color ]; }
-    virtual uint8_t GetLevels( int step, int level ) { return packet->level[ level ]; }
+    virtual int GetStepCount( ) override { return 1; }
+    virtual unsigned long GetDuration( int step ) override { return 0; }
+    virtual int GetCommand( int step ) override{ return packet->command; }
+    virtual int GetBrightness( int step ) override { return packet->brightness; }
+    virtual int GetSpeed( int step ) override { return packet->speed; }
+    virtual int GetPatternId( int step ) override { return packet->pattern; }
+    virtual uint32_t GetColors( int step, int color ) override { return packet->color[ color ]; }
+    virtual uint8_t GetLevels( int step, int level ) override { return packet->level[ level ]; }
 
     RadioPixel::Command *packet;
 };
@@ -62,13 +70,13 @@ class StepSequence : public Sequence
 {
 public:
     StepSequence( const Step *_steps, int _stepCount ) : steps( _steps ), stepCount( _stepCount ) { }
-    virtual int GetStepCount( ) { return stepCount; }
-    virtual unsigned long GetDuration( int step ) { return steps[ step ].duration; }
-    virtual int GetBrightness( int step ) { return steps[ step ].brightness; }
-    virtual int GetSpeed( int step ) { return steps[ step ].speed; }
-    virtual int GetPatternId( int step ) { return steps[ step ].pattern; }
-    virtual uint32_t GetColors( int step, int color ) { return steps[ step ].colors[ color ]; }
-    virtual uint8_t GetLevels( int step, int level ) { return ( level == 0 ) ? steps[ step ].level : 0; }
+    virtual int GetStepCount( ) override { return stepCount; }
+    virtual unsigned long GetDuration( int step ) override { return steps[ step ].duration; }
+    virtual int GetBrightness( int step ) override { return steps[ step ].brightness; }
+    virtual int GetSpeed( int step ) override { return steps[ step ].speed; }
+    virtual int GetPatternId( int step ) override { return steps[ step ].pattern; }
+    virtual uint32_t GetColors( int step, int color ) override { return steps[ step ].colors[ color ]; }
+    virtual uint8_t GetLevels( int step, int level ) override { return ( level == 0 ) ? steps[ step ].level : 0; }
 
     const Step *steps;
     int stepCount;
@@ -91,7 +99,7 @@ class RandomSequence : public StepSequence
 public:
     RandomSequence( );
     
-    virtual int Reset( );
-    virtual int Advance( int step, bool timed = false );
+    virtual int Reset( ) override;
+    virtual int Advance( int step, bool timed = false ) override;
 };
 

@@ -1,59 +1,49 @@
+#include <Arduino.h>
 #include <stdarg.h>
-#include <RFM69.h>    //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <SPI.h>
 #include <Adafruit_NeoPixel.h>
 #include <radiopixel_protocol.h>
 #include "Player.h"
 #include "Sequence.h"
-#include "Button.h"
 
+// In order to support different harware, look in the ./Board/Board.h There you
+// will see the base class for hardware. New boards should have their own .h/.cpp 
+// files accordingly and relevant information there. 
 
-//#define DEBUG
+// There are 3 board configurations so far. Look in ./Board to see the ones 
+// already configured. Find examples commented below and what pin the LED lights
+// are attached to.
 
-// board rev (x 10)
-#define BOARD_REV 13 
-
-// serial/debug
-
-const long SERIAL_BAUD = 9600; //for bluetooth, was 115200;
-const int LED_PIN = 9;
-
-// strip
-
-const int STRIP_LENGTH = 92; //135
-#if BOARD_REV <= 12
-const int STRIP_PIN = 8;
-#else
+// For the BlueFruit_Feather_Board
+#include "Board/BlueFruit_Feather_Board.h"
+Feather32u4BlueFruit board = Feather32u4BlueFruit( );
 const int STRIP_PIN = A5;
-#endif
+
+// For the 1.3 Custom Made Board
+// #include "Board/Custom_Board_1_3.h"
+// CustomBoardVer1_3 board = CustomBoardVer1_3( );
+// const int STRIP_PIN = A5;
+
+// For the 1.0 Custom Made Board
+// #include "Board/Custom_Board_1_0.h"
+// CustomBoardVer1_0 board = CustomBoardVer1_0( );
+// const int STRIP_PIN = 8;
+
+// Strip Configuration setup
+const int STRIP_LENGTH = 144; // 135
+
 Stripper strip( STRIP_LENGTH, STRIP_PIN, NEO_GRB + NEO_KHZ800 );
 
-// patterns
-
+// Pattern Classes
 Player player;
 IdleSequence idle;
 AlertSequence alert;
 RandomSequence randm;
 
-// radio
-
-//#define IS_RFM69HW    //uncomment only for RFM69HW! Leave out if you have RFM69W!
-RFM69 radio;
-bool controller = false; // did we initiate the latest command?
 RadioPixel::Command recvPacket; // last packet received
 PacketSequence recvSequence( &recvPacket );
 time_t lastTransmit = 0; // time of last retransmit
 const time_t TRANSMIT_MS = 1000;
-
-// buttons (board v1.3 and above)
-
-const int BUTTON1_PIN = 4;
-const int BUTTON2_PIN = 5;
-Button button1( BUTTON1_PIN ), button2( BUTTON2_PIN );
-
-// flash (board v1.3 and above)
-
-const int FLASH_PIN = 8;
 
 // todo:
 // [ ] allow local control when no controller is transmitting
@@ -64,187 +54,151 @@ const int FLASH_PIN = 8;
 
 int freeRam()
 {
-    extern int __heap_start, *__brkval;
-    int v;
-    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
 
-void setup() 
+void Blink( byte pin, int ms )
 {
-    Blink( LED_PIN, 50 );
-  
-    // serial/debug
-    Serial.begin( SERIAL_BAUD );
-    Serial.println( "RadioPixel" );
-    pinMode( LED_PIN, OUTPUT );
-
-    // strip
-    strip.begin();
-    strip.setBrightness( 20 );
-
-    // progress
-    strip.setPixelColor( 0, WHITE );
-    strip.show();
-
-    // buttons
-    digitalWrite( BUTTON1_PIN, HIGH );
-    digitalWrite( BUTTON2_PIN, HIGH );
-
-    // progress
-    strip.setPixelColor( 1, WHITE );
-    strip.show();    
-
-    // radio
-    delay( 10 );
-    radio.initialize( HN_FREQUENCY, HN_NODEID, HN_NETWORKID );
-#ifdef IS_RFM69HW
-    radio.setHighPower(); //only for RFM69HW!
-#endif
-    radio.encrypt( HN_KEY );
-    radio.promiscuous( false );
-
-    // progress
-    strip.setPixelColor( 2, WHITE );
-    strip.show();
-
-    randomSeed(analogRead(0));
-
-    // start idle pattern
-    player.SetSequence( &idle );
-    
-    Serial.println( "setup complete");
+  pinMode( pin, OUTPUT );
+  digitalWrite( pin, HIGH );
+  delay( ms );
+  digitalWrite( pin, LOW );
 }
 
-#ifdef DEBUG          
+void setup()
+{
+  Blink( board.GetLedPin(), 50 );
+
+  // serial/debug
+  Serial.begin( board.GetSerialBaud() );
+  Serial.println( "RadioPixel" );
+  pinMode( board.GetLedPin(), OUTPUT );
+
+  // strip
+  strip.begin();
+  strip.setBrightness( 20 );
+
+  // progress
+  strip.setPixelColor( 0, GREEN );
+  strip.show();
+
+  // Set up Buttons if applicable to the board.
+  board.SetupButtons();
+  strip.setPixelColor( 1, GREEN );
+  strip.show();
+
+  // progress
+  strip.setPixelColor( 2, GREEN );
+  strip.show();
+
+  // Set up bluetooth if applicable
+  board.SetupBluetooth();
+
+  //progress
+  strip.setPixelColor( 3, GREEN );
+  strip.show();
+
+  // Set up FM Radio if applicable
+  board.SetupFMRadio();
+
+  // progress
+  strip.setPixelColor( 4, GREEN );
+  strip.show();
+
+  randomSeed(analogRead(0));
+
+  // start idle pattern
+  player.SetSequence( &idle );
+
+  Serial.println( "setup complete");
+}
+
+#ifdef DEBUG
 time_t lastUpdate = 0;
 #endif
 
 void loop( )
 {
-    time_t now = millis( );
+  time_t now = millis( );
 
-#ifdef DEBUG          
-    if ( now >= ( lastUpdate + 1000 ) )
-    {
-        Serial.print( F("free memory: " ) );
-        Serial.print( freeRam( ) );
-        Serial.println( F(" bytes" ) );
-        lastUpdate = now;
-    }
+#ifdef DEBUG
+  if ( now >= ( lastUpdate + 1000 ) )
+  {
+    Serial.print( F("free memory: " ) );
+    Serial.print( freeRam( ) );
+    Serial.println( F(" bytes" ) );
+    lastUpdate = now;
+  }
 #endif
 
-    // if we receive a command from serial then become the controller
-    int avail = Serial.available( );
-    if ( avail >= sizeof recvPacket )
+  // Checks first to see if there is a Packet in from the App ( typically Bluetooth )
+  // If it is, we become the controller. Otherwise, check the FM Radio. If something is
+  // received via the radio, we are no longer the controller. Show the Sequence we receive.
+
+  // Finally, check the buttons if the board defines them. Become the controller and show
+  // the Sequence sepecified.
+
+  // In all cases, if we are the controller, make sure we send the Look out to any other
+  // nodes listening via the FM Radio.
+
+  if ( board.CheckRecieveAppPacket(recvPacket) )
+  {
+    player.SetSequence( &recvSequence );
+  }
+  else if ( board.CheckRecieveFMPacket(recvPacket) )
+  {
+    player.SetSequence(&recvSequence);
+  }
+
+  // If the board doesn't support buttons, Type NONE will be returned.
+  Sequence::Type seqType = board.CheckButtons();
+  if ( seqType != Sequence::Type::NONE)
+  {
+    Sequence *seq = NULL;
+    if ( seqType == Sequence::Type::ALERT)
     {
-        // read the packet
-#ifdef DEBUG          
-        Serial.readBytes( ( char *)&recvPacket, sizeof recvPacket );
-        Serial.print( F("received serial command, command "));
-        Serial.print( recvPacket.command );
-        Serial.print( F(", pattern "));
-        Serial.println( recvPacket.pattern );
-#endif        
-        if ( avail > sizeof recvPacket )
-        {
-            int extra = 0;
-            while ( Serial.available( ) )
-            {
-                Serial.read( );
-                extra++;
-            }
-#ifdef DEBUG          
-            Serial.print( F("serial overflow "));
-            Serial.print( extra );
-            Serial.println( F(" bytes"));
-#endif
-        }
-          
-        // take control
-        controller = true;
-        player.SetSequence( &recvSequence );
+      seq = &alert;
+    }
+    else if (seqType == Sequence::Type::RANDOM)
+    {
+      seq = &randm;
     }
 
-    // if we receive a command from the radio then release control
-    if ( radio.receiveDone( ) && 
-        radio.DATALEN == sizeof( RadioPixel::Command ) )
+    // apply new sequence if applicable
+    if ( seq )
     {
-        // read the packet        
-        memcpy( &recvPacket, ( void * )radio.DATA, radio.DATALEN );
+      if ( player.GetSequence( ) != seq )
+      {
+        player.SetSequence( seq );
+      }
+      else
+      {
+        player.AdvanceSequence( );
+      }
+    }
+  }
 
-        // release control
-        controller = false;
-        player.SetSequence( &recvSequence );
+  // run the player
+  if ( player.UpdatePattern( now, &strip ) )
+  {
+    lastTransmit = 0;
+  }
+
+  player.UpdateStrip( now, &strip );
+
+  // retransmit if we're the controller and haven't sent for a while
+  if ( board.IsController() && ( now - lastTransmit ) > TRANSMIT_MS )
+  {
+    RadioPixel::Command xmitCommand;
+    if ( player.GetCommand( &xmitCommand ) )
+    {
+      board.TransmitFMPacket( xmitCommand );
     }
 
-    // check the buttons
-    button1.update( );
-    button2.update( );
-    if ( !button1.down && !button2.down )
-    {
-        // determine what button was hit and the resulting sequence
-        Sequence *seq = NULL;
-        if ( ( button1.duration( ) >= 2500 ) && ( button2.duration( ) >= 2500 ) )
-        {
-            controller = !controller;
-            // seq = controller ? &red : &green;
-        }
-        else if ( button1.duration( ) )
-        {
-            if ( controller )
-            {
-                seq = &alert;
-            }
-            else
-            {
-                seq = &randm;
-            }
-        }
-        else if ( button2.duration( ) )
-        {
-            seq = &randm;
-        }
-        button1.clear( );
-        button2.clear( );
-
-        // apply new sequence
-        if ( seq )
-        {
-            if ( player.GetSequence( ) != seq )
-            {
-                player.SetSequence( seq );
-            }
-            else
-            {
-                player.AdvanceSequence( );
-            }
-        }
-    }
-    
-    // run the player
-    if ( player.UpdatePattern( now, &strip ) )
-    {
-        lastTransmit = 0;
-    }
-    player.UpdateStrip( now, &strip );
-
-    // retransmit if we're the controller and haven't sent for a while
-    if ( controller && ( now - lastTransmit ) > TRANSMIT_MS )
-    {
-        RadioPixel::Command xmitCommand;
-        if ( player.GetCommand( &xmitCommand ) )
-        {
-            radio.send( HN_NODEID, &xmitCommand, sizeof xmitCommand );
-        }
-        lastTransmit = now;
-    }
+    lastTransmit = now;
+  }
 }
 
-void Blink( byte pin, int ms )
-{
-    pinMode( pin, OUTPUT );
-    digitalWrite( pin, HIGH );
-    delay( ms );
-    digitalWrite( pin, LOW );
-}
 
