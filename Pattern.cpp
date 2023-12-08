@@ -69,7 +69,7 @@ void FlashPattern::Update( Stripper *strip, time_t offset )
     uint16_t t = offset * 300 / GetDuration( strip );
     uint16_t o = t % 100;
     uint32_t col = color( t / 100 );
-    if ( ( o >= 0 && o <= 10 ) || ( o >= 20 && o <= 30 ) )
+    if ( ( o <= 10 ) || ( o >= 20 && o <= 30 ) )
     {
         strip->setAllColor( col );
     }
@@ -93,7 +93,7 @@ time_t RainbowPattern::GetDuration( Stripper *strip )
 
 void RainbowPattern::Update( Stripper *strip, time_t offset )
 {
-    for ( int i = 0; i < strip->numPixels( ); i++ ) 
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ ) 
     {
         uint8_t t = 255 - offset * 255 / GetDuration( strip );
         uint8_t p = i * 255 / strip->numPixels( );
@@ -112,7 +112,7 @@ void SparklePattern::Loop( Stripper *strip, time_t offset )
 {
     // strobe - new pixels each loop
     strip->setAllColor( 0 );
-    for ( int c = fade( 1, strip->numPixels( ), m_level[ 0 ] ); c; c-- )
+    for ( uint16_t c = fade( 1, strip->numPixels( ), m_level[ 0 ] ); c; c-- )
     {
         uint32_t col = color( random( 3 ) );
         if ( col == 0 )
@@ -137,6 +137,7 @@ void MiniSparklePattern::Update( Stripper *strip, time_t offset )
 //-------------------------------------------------------------
 
 MiniTwinklePattern::MiniTwinklePattern()
+    : m_lastDim(0), m_lastLit(0)
 {
 }
 
@@ -160,7 +161,7 @@ void MiniTwinklePattern::Update( Stripper *strip, time_t offset )
     int dim( 255 - ( dimDelta * 255 / duration ) );
     if ( dim < 255 )
     {
-        for ( int i = 0; i < strip->numPixels( ); ++i )
+        for ( uint16_t i = 0; i < strip->numPixels( ); ++i )
         {
             uint32_t col = strip->getPixelColor( i );
             col = strip->ColorFade( col, dim );
@@ -213,7 +214,7 @@ void MarchPattern::Update( Stripper *strip, time_t offset )
     // how far are we through all three segments
     uint32_t o = ( m_level[ 0 ] * 3 ) - ( offset * m_level[ 0 ] * 3 / duration );
     
-    for ( int i = 0; i < strip->numPixels( ); i++ ) 
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ ) 
     {
         // fade level based on position within segment
         uint32_t e = ( i + o ) % m_level[ 0 ];
@@ -247,7 +248,7 @@ time_t WipePattern::GetDuration( Stripper *strip )
 
 void WipePattern::Update( Stripper *strip, time_t offset )
 {
-    for ( int i = 0; i < strip->numPixels( ); i++ )
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
     {
         int d = GetDuration( strip );
         int t = offset * ( strip->numPixels( ) * 3 ) / d;
@@ -283,7 +284,7 @@ void GradientPattern::Init( Stripper *strip, time_t offset )
     {
         grad.addStep( 0, m_color[ 0 ] );
         grad.addStep( m_level[ 0 ] / 3, m_color[ 1 ] );
-        grad.addStep( ( int )m_level[ 0 ] * 2 / 3, m_color[ 2 ] );
+        grad.addStep( static_cast<int>(m_level[ 0 ]) * 2 / 3, m_color[ 2 ] );
         grad.addStep( m_level[ 0 ], m_color[ 0 ] );
         grad.addStep( m_level[ 0 ] + 1, 0 );
         grad.addStep( 255, 0 );
@@ -301,7 +302,7 @@ void GradientPattern::Init( Stripper *strip, time_t offset )
     mp2 = new uint8_t[ strip->numPixels( ) ];
     if ( mp1 && mp2 )
     {
-        for ( int i = 0; i < strip->numPixels( ); i++ )
+        for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
         {
             mp1[ i ] = mp2[ i ] = i;
         }
@@ -314,7 +315,7 @@ void GradientPattern::Loop( Stripper *strip, time_t offset )
     // create a new random map
     if ( mp1 && mp2 )
     {
-        for ( int i = 0; i < strip->numPixels( ); i++ )
+        for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
         {
             mp1[ i ] = mp2[ i ];
             mp2[ i ] = random( strip->numPixels( ) );
@@ -325,7 +326,7 @@ void GradientPattern::Loop( Stripper *strip, time_t offset )
 
 void GradientPattern::Update( Stripper *strip, time_t offset )
 {
-    for ( int i = 0; i < strip->numPixels( ); i++ )
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
     {
         uint32_t c1 = 0xff0000, c2 = 0xff0000;
         if ( mp1 && mp2 )
@@ -378,7 +379,7 @@ void CandyCanePattern::Update( Stripper *strip, time_t offset )
     int c = 0;
     if ( offset < ( GetDuration( strip ) / 2 ) )
         c = 1;
-    for ( int i = 0; i < strip->numPixels( ); i++ )
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
     {
         strip->setPixelColor( i, color( c + ( i % 2 ) ) );
     }
@@ -409,7 +410,7 @@ void TestPattern::Update( Stripper *strip, time_t offset )
     grad.addStep( 85, m_color[ 1 ] );
     grad.addStep( 170, m_color[ 2 ] );
     grad.addStep( 255, m_color[ 0 ] );
-    for ( int i = 0; i < strip->numPixels( ); i++ )
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
     {
         strip->setPixelColor( i, grad.getColor( i * 255 / strip->numPixels( ) ) );
     }
@@ -424,9 +425,9 @@ time_t FixedPattern::GetDuration( Stripper *strip )
 
 void FixedPattern::Update( Stripper *strip, time_t offset )
 {
-    int step = 3 * offset / GetDuration( strip );
+    uint16_t step = 3 * offset / GetDuration( strip );
     uint32_t col( color( step ) );
-    for ( int i = 0; i < strip->numPixels( ); i++ )
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
     {
         strip->setPixelColor( i, ( i % 3 == step ) ? col : 0 );
     }
@@ -437,9 +438,9 @@ void FixedPattern::Update( Stripper *strip, time_t offset )
 void DiagnosticPattern::Update( Stripper *strip, time_t offset )
 {
     const int space = 3;
-    for ( int i = 0; i < strip->numPixels( ); i++ )
+    for ( uint16_t i = 0; i < strip->numPixels( ); i++ )
     {
-        bool on( ( i % ( m_code + space ) ) < m_code );
+        bool on( ( i % ( m_code + space ) ) < static_cast<uint16_t>(m_code) );
         strip->setPixelColor( i, on ? WHITE : BLACK );
     }
 }
